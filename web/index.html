@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 工作汇报助手</title>
+    <link rel="stylesheet" href="style.css?v=2.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 左边栏设置 -->
+        <aside class="sidebar">
+            <h1 class="logo">
+                <span class="icon">✨</span> AI 智能助手
+            </h1>
+
+            <form id="config-form" class="ant-form">
+                <div class="form-section">
+                    <h3>基础设置</h3>
+                    <div class="form-item">
+                        <label>真实姓名</label>
+                        <input type="text" id="USER_REAL_NAME" name="USER_REAL_NAME" placeholder="例如：宋代立"
+                            class="ant-input">
+                    </div>
+                    <div class="form-item">
+                        <label>微信昵称</label>
+                        <input type="text" id="USER_WX_NICKNAME" name="USER_WX_NICKNAME" placeholder="例如：小兄弟"
+                            class="ant-input">
+                    </div>
+                    <div class="form-item">
+                        <label>微信原始数据目录 (无需手动填，点击浏览)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="WECHAT_SOURCE_DIR" name="WECHAT_SOURCE_DIR"
+                                placeholder="点击右侧按钮选择包含 wxid 的上一级目录..." class="ant-input"
+                                style="flex: 1; cursor: pointer;" readonly>
+                            <button type="button" id="btn-browse" class="ant-btn">浏览...</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>AI 引擎配置</h3>
+                    <div class="form-item">
+                        <label>Base URL</label>
+                        <input type="text" id="NVIDIA_BASE_URL" name="NVIDIA_BASE_URL" placeholder="兼容 OpenAI 的 API 地址"
+                            class="ant-input">
+                    </div>
+                    <div class="form-item">
+                        <label>API Key</label>
+                        <input type="password" id="NVIDIA_API_KEY" name="NVIDIA_API_KEY" placeholder="sk-..."
+                            class="ant-input">
+                    </div>
+                    <div class="form-item">
+                        <label>模型名称</label>
+                        <input type="text" id="NVIDIA_MODEL" name="NVIDIA_MODEL" placeholder="例如: moonshotai/kimi-k2.5"
+                            class="ant-input">
+                    </div>
+                </div>
+
+                <button type="submit" class="ant-btn ant-btn-primary" id="btn-save" style="width: 100%;">保存配置</button>
+                <div id="save-status" class="status-msg"></div>
+            </form>
+        </aside>
+
+        <!-- 右侧主界面 -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div class="action-bar">
+                    <button id="btn-extract" class="ant-btn" title="这会完成解密数据库和同步双步骤">
+                        <span class="icon">🔄</span> 一键解密并同步提取
+                    </button>
+                    <div class="divider"></div>
+                    <span style="font-size: 14px; margin-right: 8px;">时间范围：</span>
+                    <select id="preset-time" class="ant-select">
+                        <option value="1d">最近 24 小时</option>
+                        <option value="3d">最近 3 天</option>
+                        <option value="7d">最近 7 天 (本周)</option>
+                    </select>
+                    <button id="btn-generate" class="ant-btn ant-btn-primary" style="margin-left: 12px;">
+                        <span class="icon">📊</span> 一键生成报告
+                    </button>
+                    <button id="btn-open-dir" class="ant-btn" style="margin-left: auto;">
+                        <span class="icon">📁</span> 打开报告目录
+                    </button>
+                </div>
+            </div>
+
+            <div class="panels-container">
+                <!-- 推理日志 -->
+                <div class="panel log-panel">
+                    <div class="panel-header">运行日志</div>
+                    <div id="terminal-output" class="log-body">准备就绪。</div>
+                </div>
+
+                <!-- 渲染出的报告 -->
+                <div class="panel report-panel">
+                    <div class="panel-header">工作报告预览</div>
+                    <div id="report-output" class="markdown-body">
+                        <div class="empty-state">点击“一键生成报告”查看结果</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js?v=2.0"></script>
+</body>
+
+</html>
