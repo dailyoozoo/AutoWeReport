@@ -5,10 +5,13 @@
 import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 
 def load_filter_keywords():
     from dotenv import load_dotenv
-    load_dotenv()
+
+    env_path = Path(__file__).resolve().parents[2] / '.env'
+    load_dotenv(env_path, override=True)
     kws = os.getenv("FILTER_KEYWORDS", "")
     return [k.strip() for k in kws.split(",") if k.strip()]
 

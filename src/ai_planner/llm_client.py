@@ -1,31 +1,40 @@
 """
 AI 大模型调用客户端
-封装对 NVIDIA API 的请求
+封装对兼容 OpenAI 接口服务的请求
 """
 import os
-from openai import OpenAI
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
 
-# 读取配置
-API_KEY = os.getenv("NVIDIA_API_KEY")
-BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
-MODEL_DAILY = os.getenv("NVIDIA_MODEL_DAILY", "moonshotai/kimi-k2.5")
-MODEL_WEEKLY = os.getenv("NVIDIA_MODEL_WEEKLY", "z-ai/glm4.7")
+def resolve_runtime_config(is_weekly: bool) -> tuple[str, str, str]:
+    """每次调用时动态读取环境变量，避免服务进程缓存旧配置。"""
+    env_path = Path(__file__).resolve().parents[2] / '.env'
+    load_dotenv(env_path, override=True)
 
-client = OpenAI(
-    api_key=API_KEY,
-    base_url=BASE_URL,
-)
+    api_key = os.getenv("NVIDIA_API_KEY", "").strip()
+    base_url = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
+
+    # Web 端目前只暴露一个 NVIDIA_MODEL 字段，优先用它。
+    unified_model = os.getenv("NVIDIA_MODEL", "").strip()
+    daily_model = os.getenv("NVIDIA_MODEL_DAILY", "moonshotai/kimi-k2.5").strip()
+    weekly_model = os.getenv("NVIDIA_MODEL_WEEKLY", "z-ai/glm4.7").strip()
+    model_name = unified_model or (weekly_model if is_weekly else daily_model)
+
+    return api_key, base_url, model_name
 
 def generate_plan(prompt: str, content: str, is_weekly: bool = False) -> str:
     """调用大模型生成内容 (原生存取)"""
-    model_name = MODEL_WEEKLY if is_weekly else MODEL_DAILY
+    api_key, base_url, model_name = resolve_runtime_config(is_weekly)
     
-    url = f"{BASE_URL.rstrip('/')}/chat/completions"
+    if not api_key:
+        print("\n❌ API 请求失败: 未配置 NVIDIA_API_KEY")
+        return ""
+
+    url = f"{base_url.rstrip('/')}/chat/completions"
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream"
     }

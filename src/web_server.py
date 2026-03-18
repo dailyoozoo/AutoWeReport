@@ -14,6 +14,7 @@ from dotenv import load_dotenv, set_key
 
 PROJECT_ROOT = Path(__file__).parent.parent
 ENV_PATH = PROJECT_ROOT / '.env'
+MERGED_DATA_PATH = PROJECT_ROOT / 'data' / 'merged_chat_data.json'
 sys.path.append(str(PROJECT_ROOT / 'src'))
 
 app = FastAPI(title="AI Work Assistant API")
@@ -40,15 +41,22 @@ async def push_report(md_content: str):
     data = { "type": "report_done", "content": md_content }
     await log_queue.put(data)
 
+
+def reload_env():
+    load_dotenv(ENV_PATH, override=True)
+
 @app.get("/api/config")
 async def get_config():
-    load_dotenv(ENV_PATH)
+    reload_env()
     return {
         "USER_REAL_NAME": os.getenv("USER_REAL_NAME", "宋代立"),
         "USER_WX_NICKNAME": os.getenv("USER_WX_NICKNAME", "小兄弟"),
         "NVIDIA_BASE_URL": os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
         "NVIDIA_API_KEY": os.getenv("NVIDIA_API_KEY", ""),
-        "NVIDIA_MODEL": os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k2.5"),
+        "NVIDIA_MODEL": os.getenv("NVIDIA_MODEL", "").strip()
+        or os.getenv("NVIDIA_MODEL_DAILY", "").strip()
+        or os.getenv("NVIDIA_MODEL_WEEKLY", "").strip()
+        or "moonshotai/kimi-k2.5",
         "WECHAT_SOURCE_DIR": os.getenv("WECHAT_SOURCE_DIR", ""),
     }
 
@@ -61,7 +69,8 @@ async def save_config(config: ConfigModel):
     for key, value in config_dict.items():
         set_key(str(ENV_PATH), key, value)
         os.environ[key] = value
-        
+
+    reload_env()
     return {"message": "Config saved"}
 
 @app.get("/api/stream")
@@ -120,16 +129,22 @@ async def trigger_extract():
         sys.stdout = LogInterceptor()
         
         try:
+            reload_env()
             source_dir = os.getenv("WECHAT_SOURCE_DIR", "").strip()
-            # 硬编码默认的解密结果保存地，不暴露给用户
             wechat_dir = str(PROJECT_ROOT / 'data' / 'wechat' / 'decrypted')
-            output_file = PROJECT_ROOT / 'data' / 'merged_chat_data.json'
+            output_file = MERGED_DATA_PATH
             
             # 第一阶段：活体提取与解密
             if source_dir and os.path.exists(source_dir):
                 await push_log(f"\n[Decrypting] 发现原址寄生数据配置 ({source_dir})，尝试提取...")
-                from extractors.wechat_extractor import create_config, extract_keys, decrypt_databases
+                from extractors.wechat_extractor import (
+                    create_config,
+                    decrypt_databases,
+                    extract_keys,
+                    reset_extraction_output,
+                )
                 
+                reset_extraction_output()
                 # 配置解密器
                 create_config(source_dir)
                 
@@ -185,7 +200,7 @@ async def trigger_generate(range: str = '1d'):
         sys.stdout = LogInterceptor()
         
         try:
-            DATA_FILE_PATH = Path('D:/其他/gmini/工作安排工具/data/merged_chat_data.json')
+            reload_env()
             now = datetime.now()
             
             days = 1
@@ -195,7 +210,7 @@ async def trigger_generate(range: str = '1d'):
             start_time = now - timedelta(days=days)
             
             await push_log("[Filter] 加载并清洗聊天数据...")
-            conversations = load_data(DATA_FILE_PATH)
+            conversations = load_data(MERGED_DATA_PATH)
             clean_text = filter_messages(conversations, start_time, now)
             
             if not clean_text:
@@ -213,15 +228,17 @@ async def trigger_generate(range: str = '1d'):
             final_prompt = GENERAL_REPORT_PROMPT.replace("[时间范围]", f"过去 {days} 天")
             final_prompt = final_prompt.replace("[真实姓名]", real_name)
             final_prompt = final_prompt.replace("[微信昵称]", wx_nick)
-            
-            # 临时将单模型环境变量映射到脚本现有的环境键上，以便 llm_client 跑通
-            os.environ["NVIDIA_MODEL_WEEKLY"] = os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k2.5")
-            
-            report_content = generate_plan(prompt=final_prompt, content=clean_text, is_weekly=True)
+
+            report_kind = 'daily'
+            if range == '3d':
+                report_kind = '3d'
+            elif range == '7d':
+                report_kind = 'weekly'
+
+            report_content = generate_plan(prompt=final_prompt, content=clean_text, is_weekly=(days > 1))
             
             if report_content:
-                # 依然复用 save_report 将报告存入 weekly 目录或者按范围命名
-                save_report(report_content, is_weekly=(days>1))
+                save_report(report_content, report_kind=report_kind)
                 await push_report(report_content)
                 
         except Exception as e:

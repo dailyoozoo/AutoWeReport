@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -117,6 +118,20 @@ def create_config(wechat_data_dir: str):
     print(f'   解密输出: {config["decrypted_dir"]}')
 
     return config_path
+
+
+def reset_extraction_output():
+    """清理上一次同步生成的中间产物，避免旧数据库残留混入本次分析。"""
+    decrypted_dir = DATA_DIR / 'decrypted'
+    keys_file = DATA_DIR / 'all_keys.json'
+
+    if decrypted_dir.exists():
+        shutil.rmtree(decrypted_dir)
+        print(f'🧹 已清理旧解密目录: {decrypted_dir}')
+
+    if keys_file.exists():
+        keys_file.unlink()
+        print(f'🧹 已清理旧密钥文件: {keys_file}')
 
 
 def extract_keys():
